@@ -8,10 +8,12 @@ This file captures the current planning conclusions so individual tasks can refe
 When multiple postfix variants exist for the same logical key, the rule for which stored key
 is returned or deleted must be defined.
 
-**Options to decide:**
+**Decision:**
 - Pick the newest by `created_at` in `*.meta.json`.
-- Pick the first match found on disk.
-- Return conflict (e.g., 409) and require the caller to disambiguate.
+
+**Conflict rule:**
+- If the newest stored key cannot be determined (e.g., same latest `created_at` or missing
+  metadata), return 409 and require the caller to disambiguate.
 
 **Where this affects code:**
 - `GET /<bucket>/<key>` handler
@@ -85,4 +87,3 @@ The LIST endpoint needs a concrete response format.
 - GET/DELETE resolve logical key to stored file; return/delete stored object
 - LIST walks FS and returns stored keys directly
 - No auth; block `../` or absolute paths
-
