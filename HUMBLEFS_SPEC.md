@@ -288,8 +288,15 @@ GET /<bucket>?prefix=xxx
 ## 11. Security (minimal)
 
 - No auth (LAN / PoC)
-- Reject `../` and absolute paths
-- Whitelist `hfs-*` metadata headers
+- Path validation is required before mapping to local FS:
+  - URL-decode the key (once) before validation.
+  - Reject if the decoded key contains `..` path segments or attempts traversal.
+  - Reject absolute paths (`/`, drive letters, or `\`-rooted paths on Windows).
+- Only accept metadata headers with the explicit prefix `x-amz-meta-hfs-*`.
+  - Reject any other `x-amz-meta-*` keys.
+- On rejection:
+  - Use `400 Bad Request` for invalid paths or invalid metadata headers.
+  - Use `403 Forbidden` if policy-enforced denial is desired (e.g., future auth).
 
 ---
 
