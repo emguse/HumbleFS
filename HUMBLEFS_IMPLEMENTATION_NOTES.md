@@ -71,9 +71,9 @@ Define how `Content-Type` is stored and returned when PUT omits it.
 ### 5) LIST response format
 The LIST endpoint needs a concrete response format.
 
-**Options to decide:**
-- JSON vs XML
-- Minimal fields (e.g., key, size, last_modified)
+**Decision:**
+- JSON response with a top-level `objects` array.
+- Each object includes: `key`, `size`, `last_modified`.
 
 **Where this affects code:**
 - `GET /<bucket>?prefix=...` handler
