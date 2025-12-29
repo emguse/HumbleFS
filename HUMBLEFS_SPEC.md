@@ -260,6 +260,29 @@ GET /<bucket>?prefix=xxx
 - Return stored keys as-is
 - Grouping and logical-name mapping can be added later
 
+### 10.1 Response format (JSON)
+
+- Response body is JSON.
+- Top-level shape:
+
+```json
+{
+  "objects": [
+    {
+      "key": "path/to/stored__a9f3.json",
+      "size": 12345,
+      "last_modified": "2025-01-01T12:34:56Z"
+    }
+  ]
+}
+```
+
+#### Fields
+
+- `key` (string): stored key (includes postfix).
+- `size` (number): object size in bytes (from filesystem stat).
+- `last_modified` (string): RFC 3339 timestamp in UTC (from filesystem mtime).
+
 ---
 
 ## 11. Security (minimal)
