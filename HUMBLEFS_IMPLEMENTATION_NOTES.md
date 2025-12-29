@@ -39,10 +39,10 @@ Define how `<root>` is configured and whether buckets are auto-created.
 Clarify what happens when `x-amz-meta-hfs-postfix` is provided and the target exists,
 particularly when `hfs-conflict=new`.
 
-**Options to decide:**
-- Ignore provided postfix on conflict and generate a new one.
-- Treat it as `fail` when conflict occurs.
-- Allow overwrite only if `hfs-conflict=overwrite`.
+**Decision:**
+- Explicit postfix is strict: if the target exists, return 409 unless
+  `hfs-conflict=overwrite`. `hfs-conflict=new` does **not** auto-generate a new
+  postfix when one is explicitly provided.
 
 **Where this affects code:**
 - PUT path resolution
