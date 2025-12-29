@@ -29,7 +29,15 @@ S3-compatible-ish storage API.
 
 ---
 
-## 2. Backend directory layout
+## 2. Root configuration (startup requirement)
+
+- Root path is provided by the `HUMBLEFS_ROOT` environment variable.
+- `HUMBLEFS_ROOT` is **required** at startup.
+- The server must refuse to start if `HUMBLEFS_ROOT` is unset, does not exist, or is not writable.
+
+---
+
+## 3. Backend directory layout
 
 ```
 <root>/
@@ -48,9 +56,9 @@ S3-compatible-ish storage API.
 
 ---
 
-## 3. Key-to-path mapping
+## 4. Key-to-path mapping
 
-### 3.1 Basic mapping
+### 4.1 Basic mapping
 
 ```
 PUT /bucket/path/to/result.json
@@ -64,11 +72,11 @@ PUT /bucket/path/to/result.json
 
 ---
 
-## 4. Collision avoidance (postfix)
+## 5. Collision avoidance (postfix)
 
 HumbleFS uses postfixes to avoid same-name collisions by default.
 
-### 4.1 Postfix format (recommended)
+### 5.1 Postfix format (recommended)
 
 ```
 <basename>__<postfix>.<ext>
@@ -87,13 +95,13 @@ image__k2m8.png
 
 ---
 
-## 5. Postfix control via metadata headers
+## 6. Postfix control via metadata headers
 
 `x-amz-meta-*` headers are interpreted as the control plane.
 
 > This is an intentional S3 deviation.
 
-### 5.1 Reserved metadata headers
+### 6.1 Reserved metadata headers
 
 | Header | Description |
 |------|----|
@@ -101,7 +109,7 @@ image__k2m8.png
 | `x-amz-meta-hfs-conflict` | Conflict behavior |
 | `x-amz-meta-hfs-postfix` | Explicit postfix (optional) |
 
-### 5.2 Storage mode (`hfs-mode`)
+### 6.2 Storage mode (`hfs-mode`)
 
 ```
 x-amz-meta-hfs-mode: plain | unique | None
@@ -115,7 +123,7 @@ x-amz-meta-hfs-mode: plain | unique | None
 - `None`
   - Behaves like `plain`
 
-### 5.3 Conflict behavior (`hfs-conflict`)
+### 6.3 Conflict behavior (`hfs-conflict`)
 
 ```
 x-amz-meta-hfs-conflict: fail | overwrite | new
@@ -197,6 +205,7 @@ PUT /<bucket>/<key>
 ### Steps
 
 1. Compute the target path on local FS
+   - If the bucket directory does not exist, create it.
 2. Interpret metadata headers
 3. Write to a temporary file
 4. `rename()` into place atomically
