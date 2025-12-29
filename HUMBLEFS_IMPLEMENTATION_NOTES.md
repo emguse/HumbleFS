@@ -24,9 +24,11 @@ is returned or deleted must be defined.
 ### 2) Root path configuration + bucket creation policy
 Define how `<root>` is configured and whether buckets are auto-created.
 
-**Options to decide:**
-- Root path from env var (e.g., `HUMBLEFS_ROOT`), config file, or CLI arg.
-- If bucket is missing on `PUT`: auto-create vs. return 404.
+**Decision:**
+- Root path is provided by the `HUMBLEFS_ROOT` environment variable.
+- `HUMBLEFS_ROOT` is required at startup; the server must refuse to start if it is unset,
+  does not exist, or is not writable.
+- If bucket is missing on `PUT`, automatically create the bucket directory.
 
 **Where this affects code:**
 - Startup configuration
