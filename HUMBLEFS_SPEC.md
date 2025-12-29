@@ -127,6 +127,8 @@ x-amz-meta-hfs-conflict: fail | overwrite | new
   - Overwrite existing file
 - `new` (default)
   - Generate a new postfix and store as a distinct file
+  - If an explicit postfix is provided and it already exists, return 409 (no
+    auto-regeneration)
 
 ### 5.4 Explicit postfix (optional)
 
@@ -135,7 +137,9 @@ x-amz-meta-hfs-postfix: a9f3
 ```
 
 - Use the specified postfix
-- Conflict behavior follows `hfs-conflict`
+- If the target exists:
+  - `overwrite` is allowed
+  - `fail` or `new` returns 409 (no auto-regeneration)
 
 ### 5.5 curl example
 
@@ -152,6 +156,9 @@ curl -X PUT http://host:9000/bucket/exp1/result.json \
 ```
 <root>/bucket/exp1/result__a9f3.json
 ```
+
+If `result__a9f3.json` already exists, this request returns 409 (explicit postfix
+is strict). Use `x-amz-meta-hfs-conflict=overwrite` to overwrite instead.
 
 ---
 
