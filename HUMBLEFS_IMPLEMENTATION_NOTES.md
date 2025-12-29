@@ -55,10 +55,12 @@ particularly when `hfs-conflict=new`.
 ### 4) Content-Type precedence
 Define how `Content-Type` is stored and returned when PUT omits it.
 
-**Options to decide:**
-- Default to `application/octet-stream`.
-- Infer from filename extension.
-- Store empty and omit on GET.
+**Decision:**
+- Precedence for stored `content_type`:
+  1) `Content-Type` header from PUT (if provided)
+  2) Infer from filename extension
+  3) Default to `application/octet-stream`
+- Always write the resolved value into `*.meta.json`.
 
 **Where this affects code:**
 - PUT metadata creation

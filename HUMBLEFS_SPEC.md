@@ -194,6 +194,13 @@ is strict). Use `x-amz-meta-hfs-conflict=overwrite` to overwrite instead.
 }
 ```
 
+### 6.3 `content_type` resolution
+
+- If the PUT request includes `Content-Type`, store that value.
+- If omitted, infer from the stored key’s filename extension when possible.
+- If inference fails, default to `application/octet-stream`.
+- Always write the resolved value into `*.meta.json` as `content_type`.
+
 ---
 
 ## 7. PUT (store)
@@ -221,7 +228,8 @@ GET /<bucket>/<key>
 
 - Resolve a stored key matching the logical key
 - Return the file contents
-- Use `meta.json` for `Content-Type`
+- Use `meta.json` for `Content-Type` (per the PUT resolution rules: header → extension
+  inference → `application/octet-stream`)
 - Stored key resolution: collect all stored keys that match the logical key, then select
   the one with the newest `created_at` in its `*.meta.json`.
 - Conflict handling: if the newest stored key cannot be determined (e.g., multiple candidates
