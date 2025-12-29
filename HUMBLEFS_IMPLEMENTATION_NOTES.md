@@ -1,80 +1,109 @@
-# HumbleFS Implementation Notes (Draft)
+# HumbleFS Implementation Notes
 
-This file captures the current planning conclusions so individual tasks can reference them.
-
-## Open Decisions Required Before Implementation
-
-### 1) Logical key → stored key resolution (GET/DELETE)
-When multiple postfix variants exist for the same logical key, the rule for which stored key
-is returned or deleted must be defined.
-
-**Options to decide:**
-- Pick the newest by `created_at` in `*.meta.json`.
-- Pick the first match found on disk.
-- Return conflict (e.g., 409) and require the caller to disambiguate.
-
-**Where this affects code:**
-- `GET /<bucket>/<key>` handler
-- `DELETE /<bucket>/<key>` handler
+This document captures the current, implementation-ready decisions derived from the spec.
+It is intended as a single, up-to-date reference for developers.
 
 ---
 
-### 2) Root path configuration + bucket creation policy
-Define how `<root>` is configured and whether buckets are auto-created.
+## 1) Root configuration (startup requirement)
 
-**Options to decide:**
-- Root path from env var (e.g., `HUMBLEFS_ROOT`), config file, or CLI arg.
-- If bucket is missing on `PUT`: auto-create vs. return 404.
+**Decision**
+- Root path is provided by the `HUMBLEFS_ROOT` environment variable.
+- `HUMBLEFS_ROOT` is **required** at startup.
+- The server must refuse to start if `HUMBLEFS_ROOT` is unset, does not exist, or is not writable.
 
-**Where this affects code:**
-- Startup configuration
+**Where this affects code**
+- Startup configuration and validation
+
+---
+
+## 2) Bucket creation policy (PUT)
+
+**Decision**
+- If the target bucket directory does not exist on `PUT`, create it automatically.
+
+**Where this affects code**
 - `PUT /<bucket>/<key>` handler
-- Existence checks in `GET/LIST/DELETE`
+- Filesystem creation utilities
 
 ---
 
-### 3) `hfs-postfix` specified + conflict behavior
-Clarify what happens when `x-amz-meta-hfs-postfix` is provided and the target exists,
-particularly when `hfs-conflict=new`.
+## 3) Postfix rules and conflict behavior
 
-**Options to decide:**
-- Ignore provided postfix on conflict and generate a new one.
-- Treat it as `fail` when conflict occurs.
-- Allow overwrite only if `hfs-conflict=overwrite`.
+**Decision**
+- Default mode is `unique`: always add a postfix.
+- `hfs-conflict` values:
+  - `fail`: return 409 if target exists
+  - `overwrite`: overwrite existing target
+  - `new` (default): generate a new postfix and store a distinct file
+- **Explicit postfix is strict**:
+  - If `x-amz-meta-hfs-postfix` is provided and the target exists, return 409 unless
+    `hfs-conflict=overwrite`.
+  - `hfs-conflict=new` does **not** auto-generate a new postfix when one is explicitly provided.
 
-**Where this affects code:**
+**Where this affects code**
 - PUT path resolution
 - Conflict handling logic
 
 ---
 
-### 4) Content-Type precedence
-Define how `Content-Type` is stored and returned when PUT omits it.
+## 4) Logical key → stored key resolution (GET/DELETE)
 
-**Options to decide:**
-- Default to `application/octet-stream`.
-- Infer from filename extension.
-- Store empty and omit on GET.
+**Decision**
+- When multiple stored keys match a logical key, select the one with the newest
+  `created_at` from `*.meta.json`.
 
-**Where this affects code:**
+**Conflict rule**
+- If the newest stored key cannot be determined (e.g., multiple candidates share the same
+  latest `created_at` or metadata is missing), return `409 Conflict` and require the caller
+  to disambiguate.
+
+**Where this affects code**
+- `GET /<bucket>/<key>` handler
+- `DELETE /<bucket>/<key>` handler
+
+---
+
+## 5) Content-Type precedence
+
+**Decision**
+- Resolve `content_type` in this order:
+  1. `Content-Type` header from PUT (if provided)
+  2. Inferred from filename extension
+  3. Default to `application/octet-stream`
+- Always write the resolved value into `*.meta.json`.
+
+**Where this affects code**
 - PUT metadata creation
 - GET response headers
 
 ---
 
-### 5) LIST response format
-The LIST endpoint needs a concrete response format.
+## 6) LIST response format
 
-**Options to decide:**
-- JSON vs XML
-- Minimal fields (e.g., key, size, last_modified)
+**Decision**
+- JSON response with a top-level `objects` array.
+- Each object includes: `key`, `size`, `last_modified`.
 
-**Where this affects code:**
+**Where this affects code**
 - `GET /<bucket>?prefix=...` handler
 
 ---
 
-## Baseline Behavior Summary (from the current spec)
+## 7) Path validation and metadata header policy
+
+**Decision**
+- URL-decode the key (once) before validation.
+- Reject keys with `..` path segments or any path traversal attempt.
+- Reject absolute paths (`/`, drive letters, or `\`-rooted paths on Windows).
+- Only accept `x-amz-meta-hfs-*` headers; reject all other `x-amz-meta-*` headers.
+
+**Where this affects code**
+- Request validation middleware/utilities
+
+---
+
+## 8) Baseline behavior summary
 
 - Backend: local filesystem only; single-node
 - Objects stored as normal files plus `<stored_object>.meta.json`
@@ -86,3 +115,28 @@ The LIST endpoint needs a concrete response format.
 - LIST walks FS and returns stored keys directly
 - No auth; block `../` or absolute paths
 
+---
+
+## 9) Testing strategy (plan)
+
+### 9.1 Test layers
+1. **Unit tests**
+   - Path validation, metadata parsing, postfix generation, key resolution.
+2. **Filesystem integration tests**
+   - Temp file + atomic rename, meta file creation/removal, bucket auto-creation.
+3. **HTTP/API tests**
+   - PUT/GET/DELETE/LIST conformance and error handling.
+4. **Edge/abuse cases**
+   - Conflict resolution, missing metadata, invalid headers, traversal attempts.
+
+### 9.2 Priority coverage
+- Startup validation for `HUMBLEFS_ROOT`.
+- Explicit postfix conflict behavior (`409` unless overwrite).
+- GET/DELETE newest `created_at` selection, and 409 on ambiguity.
+- Content-Type precedence: header → extension → default.
+- LIST JSON format and `prefix` filtering.
+
+### 9.3 Test data hygiene
+- Create a temporary root directory per test.
+- Keep tests isolated by unique bucket names and keys.
+- Avoid sleep-based time ordering; use deterministic metadata when possible.
