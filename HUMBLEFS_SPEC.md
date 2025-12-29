@@ -206,6 +206,10 @@ GET /<bucket>/<key>
 - Resolve a stored key matching the logical key
 - Return the file contents
 - Use `meta.json` for `Content-Type`
+- Stored key resolution: collect all stored keys that match the logical key, then select
+  the one with the newest `created_at` in its `*.meta.json`.
+- Conflict handling: if the newest stored key cannot be determined (e.g., multiple candidates
+  share the same latest `created_at` or metadata is missing), return `409 Conflict`.
 
 ---
 
@@ -215,8 +219,10 @@ GET /<bucket>/<key>
 DELETE /<bucket>/<key>
 ```
 
+- Resolve the stored key using the same rule as GET (newest `created_at`)
 - Delete the stored key
 - Delete the matching `.meta.json`
+- Conflict handling: if the newest stored key cannot be determined, return `409 Conflict`.
 
 ---
 
