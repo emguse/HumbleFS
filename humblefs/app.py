@@ -203,7 +203,9 @@ async def put_object(
         None, alias="hfs-postfix", description="Override x-amz-meta-hfs-postfix"
     ),
     user_meta_raw: str | None = Form(
-        None, description="JSON object for user metadata (keys map to x-amz-meta-hfs-*)"
+        None,
+        description="JSON object for user metadata (keys map to x-amz-meta-hfs-*)",
+        json_schema_extra={"example": '{"key":"value"}'},
     ),
     file: UploadFile | None = File(
         None, description="Upload file via multipart/form-data for Swagger UI"
