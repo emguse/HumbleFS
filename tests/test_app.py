@@ -11,12 +11,17 @@ from humblefs.app import app
 class HumbleFSTestCase(unittest.TestCase):
     def setUp(self) -> None:
         self.temp_dir = TemporaryDirectory()
+        self.previous_root = os.environ.get("HUMBLEFS_ROOT")
         os.environ["HUMBLEFS_ROOT"] = self.temp_dir.name
         self.client = TestClient(app)
 
     def tearDown(self) -> None:
         self.client.close()
         self.temp_dir.cleanup()
+        if self.previous_root is None:
+            os.environ.pop("HUMBLEFS_ROOT", None)
+        else:
+            os.environ["HUMBLEFS_ROOT"] = self.previous_root
 
     def test_put_get_roundtrip_unique(self) -> None:
         response = self.client.put("/bucket-one/path/file.txt", content=b"hello")
