@@ -31,9 +31,13 @@ S3-compatible-ish storage API.
 
 ## 2. Root configuration (startup requirement)
 
-- Root path is provided by the `HUMBLEFS_ROOT` environment variable.
-- `HUMBLEFS_ROOT` is **required** at startup.
-- The server must refuse to start if `HUMBLEFS_ROOT` is unset, does not exist, or is not writable.
+- Root path comes from `HUMBLEFS_ROOT` or `humblefs.toml`.
+- `HUMBLEFS_ROOT` overrides config file values.
+- The config file location defaults to `./humblefs.toml` and can be overridden with
+  `HUMBLEFS_CONFIG`.
+- `HUMBLEFS_ROOT` (or `root` in config) is **required** at startup.
+- The server must refuse to start if the resolved root is unset, does not exist, or is not
+  writable.
 
 ---
 
@@ -74,7 +78,8 @@ PUT /bucket/path/to/result.json
 
 ## 5. Collision avoidance (postfix)
 
-HumbleFS uses postfixes to avoid same-name collisions by default.
+HumbleFS can use postfixes to avoid same-name collisions, but the default behavior
+stores plain keys and overwrites like S3.
 
 ### 5.1 Postfix format (recommended)
 
@@ -115,10 +120,10 @@ image__k2m8.png
 x-amz-meta-hfs-mode: plain | unique | None
 ```
 
-- `plain`
+- `plain` (default)
   - Store the specified key as-is
   - No postfix
-- `unique` (default)
+- `unique`
   - Always add a postfix and generate a unique stored key
 - `None`
   - Behaves like `plain`
@@ -131,9 +136,9 @@ x-amz-meta-hfs-conflict: fail | overwrite | new
 
 - `fail`
   - Return 409 Conflict if the name exists
-- `overwrite`
+- `overwrite` (default)
   - Overwrite existing file
-- `new` (default)
+- `new`
   - Generate a new postfix and store as a distinct file
   - If an explicit postfix is provided and it already exists, return 409 (no
     auto-regeneration)

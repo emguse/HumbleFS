@@ -8,9 +8,13 @@ It is intended as a single, up-to-date reference for developers.
 ## 1) Root configuration (startup requirement)
 
 **Decision**
-- Root path is provided by the `HUMBLEFS_ROOT` environment variable.
-- `HUMBLEFS_ROOT` is **required** at startup.
-- The server must refuse to start if `HUMBLEFS_ROOT` is unset, does not exist, or is not writable.
+- Root path comes from `HUMBLEFS_ROOT` or `humblefs.toml`.
+- `HUMBLEFS_ROOT` overrides config file values.
+- The config file location defaults to `./humblefs.toml` and can be overridden with
+  `HUMBLEFS_CONFIG`.
+- `HUMBLEFS_ROOT` (or `root` in config) is **required** at startup.
+- The server must refuse to start if the resolved root is unset, does not exist, or is not
+  writable.
 
 **Where this affects code**
 - Startup configuration and validation
@@ -31,11 +35,11 @@ It is intended as a single, up-to-date reference for developers.
 ## 3) Postfix rules and conflict behavior
 
 **Decision**
-- Default mode is `unique`: always add a postfix.
+- Default mode is `plain`: store keys as-is.
 - `hfs-conflict` values:
   - `fail`: return 409 if target exists
-  - `overwrite`: overwrite existing target
-  - `new` (default): generate a new postfix and store a distinct file
+  - `overwrite` (default): overwrite existing target
+  - `new`: generate a new postfix and store a distinct file
 - **Explicit postfix is strict**:
   - If `x-amz-meta-hfs-postfix` is provided and the target exists, return 409 unless
     `hfs-conflict=overwrite`.
