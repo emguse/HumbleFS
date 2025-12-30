@@ -31,6 +31,17 @@ class HumbleFSTestCase(unittest.TestCase):
         self.assertEqual(get_response.status_code, 200)
         self.assertEqual(get_response.content, b"hello")
 
+    def test_put_plain_uses_plain_stored_key(self) -> None:
+        headers = {
+            "x-amz-meta-hfs-mode": "plain",
+            "x-amz-meta-hfs-conflict": "overwrite",
+        }
+        response = self.client.put(
+            "/bucket-plain/path/file.txt", headers=headers, content=b"plain"
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["stored_key"], "path/file.txt")
+
     def test_put_conflict_fail_plain(self) -> None:
         headers = {
             "x-amz-meta-hfs-mode": "plain",
@@ -78,6 +89,13 @@ class HumbleFSTestCase(unittest.TestCase):
             "/bucket-five/item.txt",
             headers={"x-amz-meta-bad": "nope"},
             content=b"bad",
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_windows_traversal_rejected(self) -> None:
+        response = self.client.put(
+            "/bucket-six/safe%5C..%5Cevil.txt",
+            content=b"nope",
         )
         self.assertEqual(response.status_code, 400)
 
