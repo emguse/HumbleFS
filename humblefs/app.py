@@ -3,19 +3,27 @@ import mimetypes
 import os
 import re
 import secrets
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 from tempfile import NamedTemporaryFile
 from urllib.parse import unquote
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
+from tomllib import TOMLDecodeError, load as toml_load
 
 POSTFIX_PATTERN = re.compile(r"^[a-z0-9]{3,6}$")
 META_PREFIX = "x-amz-meta-hfs-"
 AMZ_META_PREFIX = "x-amz-meta-"
 
-app = FastAPI(title="HumbleFS")
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    _validate_root()
+    yield
+
+
+app = FastAPI(title="HumbleFS", lifespan=lifespan)
 
 
 def _utc_timestamp(value: float | None = None) -> str:
@@ -28,6 +36,18 @@ def _utc_timestamp(value: float | None = None) -> str:
 
 def _validate_root() -> Path:
     root_value = os.environ.get("HUMBLEFS_ROOT")
+    if not root_value:
+        config_path = os.environ.get("HUMBLEFS_CONFIG", "humblefs.toml")
+        config_file = Path(config_path)
+        if config_file.exists():
+            try:
+                with config_file.open("rb") as handle:
+                    config = toml_load(handle)
+            except (OSError, TOMLDecodeError) as exc:
+                raise RuntimeError("Failed to read HUMBLEFS_CONFIG") from exc
+            root_value = config.get("root")
+            if not isinstance(root_value, str):
+                raise RuntimeError("HUMBLEFS_ROOT is required")
     if not root_value:
         raise RuntimeError("HUMBLEFS_ROOT is required")
     root_path = Path(root_value)
@@ -164,21 +184,55 @@ def _select_newest_candidate(candidates: list[Path]) -> Path:
     return newest_path
 
 
-@app.on_event("startup")
-async def _startup_check() -> None:
-    _validate_root()
-
-
 @app.put("/{bucket}/{key:path}")
-async def put_object(bucket: str, key: str, request: Request) -> JSONResponse:
+async def put_object(
+    bucket: str,
+    key: str,
+    request: Request,
+    hfs_mode: str | None = Query(
+        None, alias="hfs-mode", description="Override x-amz-meta-hfs-mode \"plain\", \"unique\""
+    ),
+    hfs_conflict: str | None = Query(
+        None, alias="hfs-conflict", description="Override x-amz-meta-hfs-conflict \"fail\", \"overwrite\", \"new\""
+    ),
+    hfs_postfix: str | None = Query(
+        None, alias="hfs-postfix", description="Override x-amz-meta-hfs-postfix"
+    ),
+    user_meta_raw: str | None = Form(
+        None, description="JSON object for user metadata (keys map to x-amz-meta-hfs-*)"
+    ),
+    file: UploadFile | None = File(
+        None, description="Upload file via multipart/form-data for Swagger UI"
+    ),
+) -> JSONResponse:
     _validate_bucket(bucket)
     decoded_key = _decode_and_validate_key(key)
     headers = {name.lower(): value for name, value in request.headers.items()}
     _reject_invalid_metadata_headers(headers)
     user_meta = _parse_user_meta(headers)
+    if hfs_mode is not None:
+        user_meta["hfs-mode"] = hfs_mode
+    if hfs_conflict is not None:
+        user_meta["hfs-conflict"] = hfs_conflict
+    if hfs_postfix is not None:
+        user_meta["hfs-postfix"] = hfs_postfix
+    if user_meta_raw:
+        try:
+            extra_meta = json.loads(user_meta_raw)
+        except json.JSONDecodeError as exc:
+            raise HTTPException(status_code=400, detail="Invalid user_meta JSON") from exc
+        if not isinstance(extra_meta, dict):
+            raise HTTPException(status_code=400, detail="Invalid user_meta JSON")
+        for key, value in extra_meta.items():
+            if not isinstance(key, str):
+                raise HTTPException(status_code=400, detail="Invalid user_meta JSON")
+            if not isinstance(value, str):
+                raise HTTPException(status_code=400, detail="Invalid user_meta JSON")
+            stored_key = key if key.startswith("hfs-") else f"hfs-{key}"
+            user_meta[stored_key] = value
 
-    mode = user_meta.get("hfs-mode", "unique") or "unique"
-    conflict = user_meta.get("hfs-conflict", "new") or "new"
+    mode = user_meta.get("hfs-mode", "plain") or "plain"
+    conflict = user_meta.get("hfs-conflict", "overwrite") or "overwrite"
     postfix = user_meta.get("hfs-postfix")
 
     if mode not in {"plain", "unique", "none"}:
@@ -210,7 +264,11 @@ async def put_object(bucket: str, key: str, request: Request) -> JSONResponse:
     if conflict == "new" and mode in {"plain", "none"} and target_path.exists():
         raise HTTPException(status_code=409, detail="Object already exists")
 
-    data = await request.body()
+    if file is not None:
+        data = await file.read()
+        await file.close()
+    else:
+        data = await request.body()
     with NamedTemporaryFile(delete=False, dir=target_dir) as temp_handle:
         temp_handle.write(data)
         temp_handle.flush()

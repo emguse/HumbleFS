@@ -23,11 +23,11 @@ class HumbleFSTestCase(unittest.TestCase):
         else:
             os.environ["HUMBLEFS_ROOT"] = self.previous_root
 
-    def test_put_get_roundtrip_unique(self) -> None:
+    def test_put_get_roundtrip_default_plain(self) -> None:
         response = self.client.put("/bucket-one/path/file.txt", content=b"hello")
         self.assertEqual(response.status_code, 200)
         stored_key = response.json()["stored_key"]
-        self.assertIn("__", stored_key)
+        self.assertEqual(stored_key, "path/file.txt")
 
         stored_path = Path(self.temp_dir.name) / "bucket-one" / stored_key
         self.assertTrue(stored_path.exists())
@@ -36,16 +36,17 @@ class HumbleFSTestCase(unittest.TestCase):
         self.assertEqual(get_response.status_code, 200)
         self.assertEqual(get_response.content, b"hello")
 
-    def test_put_plain_uses_plain_stored_key(self) -> None:
+    def test_put_unique_adds_postfix(self) -> None:
         headers = {
-            "x-amz-meta-hfs-mode": "plain",
-            "x-amz-meta-hfs-conflict": "overwrite",
+            "x-amz-meta-hfs-mode": "unique",
+            "x-amz-meta-hfs-conflict": "new",
         }
         response = self.client.put(
             "/bucket-plain/path/file.txt", headers=headers, content=b"plain"
         )
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json()["stored_key"], "path/file.txt")
+        stored_key = response.json()["stored_key"]
+        self.assertIn("__", stored_key)
 
     def test_put_conflict_fail_plain(self) -> None:
         headers = {
