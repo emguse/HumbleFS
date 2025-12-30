@@ -120,9 +120,13 @@ def _build_stored_key(logical_key: str, mode: str, postfix: str | None) -> str:
     return str(directory / stored_filename) if directory.as_posix() else stored_filename
 
 
-def _resolve_content_type(stored_key: str, request: Request) -> str:
+def _resolve_content_type(
+    stored_key: str, request: Request, upload_content_type: str | None = None
+) -> str:
+    if upload_content_type:
+        return upload_content_type
     header_value = request.headers.get("content-type")
-    if header_value:
+    if header_value and not header_value.startswith("multipart/"):
         return header_value
     guessed, _ = mimetypes.guess_type(stored_key)
     return guessed or "application/octet-stream"
@@ -277,7 +281,8 @@ async def put_object(
 
     os.replace(temp_name, target_path)
 
-    content_type = _resolve_content_type(stored_key, request)
+    upload_content_type = file.content_type if file is not None else None
+    content_type = _resolve_content_type(stored_key, request, upload_content_type)
     meta = {
         "logical_key": decoded_key,
         "stored_key": stored_key,
