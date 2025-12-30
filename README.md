@@ -3,6 +3,26 @@
 HumbleFS is a minimal, content-addressed filesystem experiment with a tiny
 HTTP API for storing and retrieving objects.
 
+## A gentle word before you try it
+
+HumbleFS is meant for small, local experiments. It shines when:
+
+- **ML PoCs**: Stashing training data or model artifacts locally, then fetching
+  them through a simple HTTP API.
+- **CI/CD handoffs**: Parking build outputs or test artifacts temporarily so
+  jobs can pass them along.
+- **Learning-by-building**: Getting hands-on with an S3-like API surface while
+  keeping the implementation and verification local.
+
+Please keep in mind:
+
+- HumbleFS is **not** S3 compatible. The API shape and headers are familiar,
+  but behaviors and features are different.
+- It will not scale to large data or heavy traffic. It is not designed for
+  durability or high availability.
+- Data lives on your local filesystem. Reliability depends on your OS and
+  storage, so loss is possible.
+
 ## Project layout
 
 - `humblefs/` — Python implementation.
