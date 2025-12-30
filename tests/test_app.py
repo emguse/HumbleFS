@@ -11,12 +11,17 @@ from humblefs.app import app
 class HumbleFSTestCase(unittest.TestCase):
     def setUp(self) -> None:
         self.temp_dir = TemporaryDirectory()
+        self.previous_root = os.environ.get("HUMBLEFS_ROOT")
         os.environ["HUMBLEFS_ROOT"] = self.temp_dir.name
         self.client = TestClient(app)
 
     def tearDown(self) -> None:
         self.client.close()
         self.temp_dir.cleanup()
+        if self.previous_root is None:
+            os.environ.pop("HUMBLEFS_ROOT", None)
+        else:
+            os.environ["HUMBLEFS_ROOT"] = self.previous_root
 
     def test_put_get_roundtrip_unique(self) -> None:
         response = self.client.put("/bucket-one/path/file.txt", content=b"hello")
@@ -30,6 +35,17 @@ class HumbleFSTestCase(unittest.TestCase):
         get_response = self.client.get("/bucket-one/path/file.txt")
         self.assertEqual(get_response.status_code, 200)
         self.assertEqual(get_response.content, b"hello")
+
+    def test_put_plain_uses_plain_stored_key(self) -> None:
+        headers = {
+            "x-amz-meta-hfs-mode": "plain",
+            "x-amz-meta-hfs-conflict": "overwrite",
+        }
+        response = self.client.put(
+            "/bucket-plain/path/file.txt", headers=headers, content=b"plain"
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["stored_key"], "path/file.txt")
 
     def test_put_conflict_fail_plain(self) -> None:
         headers = {
@@ -78,6 +94,13 @@ class HumbleFSTestCase(unittest.TestCase):
             "/bucket-five/item.txt",
             headers={"x-amz-meta-bad": "nope"},
             content=b"bad",
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_windows_traversal_rejected(self) -> None:
+        response = self.client.put(
+            "/bucket-six/safe%5C..%5Cevil.txt",
+            content=b"nope",
         )
         self.assertEqual(response.status_code, 400)
 
