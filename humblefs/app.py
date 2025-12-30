@@ -50,7 +50,8 @@ def _parse_user_meta(headers: dict[str, str]) -> dict[str, str]:
     user_meta = {}
     for header_name, value in headers.items():
         if header_name.startswith(META_PREFIX):
-            user_meta[header_name[len(META_PREFIX) :]] = value
+            key = f"hfs-{header_name[len(META_PREFIX) :]}"
+            user_meta[key] = value
     return user_meta
 
 
@@ -69,7 +70,8 @@ def _decode_and_validate_key(key: str) -> str:
         raise HTTPException(status_code=400, detail="Invalid key")
     if re.match(r"^[A-Za-z]:", decoded):
         raise HTTPException(status_code=400, detail="Invalid key")
-    parts = PurePosixPath(decoded).parts
+    normalized = decoded.replace("\\", "/")
+    parts = PurePosixPath(normalized).parts
     if any(part == ".." for part in parts):
         raise HTTPException(status_code=400, detail="Invalid key")
     return decoded
